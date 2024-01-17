@@ -1,0 +1,15 @@
+ServerSeeker API+ v$VERSION by Paddyk45
+https://github.com/Paddyk45/ssapi-plus
+
+QUERY PARAMETERS
+    To provide the API key, you put 'api_key'
+
+ENDPOINTS
+    CSV:
+        PATH: /<whereis/servers>/csv
+        DESCRIPTION: Get the output of /whereis or /servers as CSV
+        QUERY PARAMETERS: See https://serverseeker.net/docs
+
+NOTE
+    Your API key will not be stored anywhere (unless the source code was modified) and will
+    get dropped from memory after the request was made
