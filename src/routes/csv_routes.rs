@@ -6,7 +6,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::error;
+use tracing::{error, info};
 
 // ------- Whereis -------
 enum SearchType {
@@ -17,6 +17,7 @@ enum SearchType {
 pub async fn route_whereis_csv(
     Query(params): Query<HashMap<String, String>>,
 ) -> axum::response::Result<(StatusCode, String)> {
+    info!("Handling /whereis/csv");
     #[derive(Serialize, Deserialize)]
     struct Record {
         server: String,
@@ -97,6 +98,7 @@ pub async fn route_whereis_csv(
 pub async fn route_servers_csv(
     Query(params): Query<HashMap<String, String>>,
 ) -> axum::response::Result<(StatusCode, String)> {
+    info!("Handling /servers/csv");
     #[derive(Serialize, Deserialize)]
     struct Record {
         server: String,

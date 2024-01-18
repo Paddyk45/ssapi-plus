@@ -7,6 +7,7 @@ use crate::routes::{route_servers_csv, route_whereis_csv};
 use axum::routing::get;
 use axum::Router;
 use tokio::signal;
+use tracing::info;
 
 pub static API_BASE_URL: &str = "https://api.serverseeker.net";
 
@@ -21,7 +22,7 @@ async fn main() {
 
     let port: u16 = 3000;
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await.unwrap();
-    println!("Listening on :{port}");
+    info!("Listening on :{port}");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
