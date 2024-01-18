@@ -4,7 +4,7 @@ use axum::extract::Query;
 use axum::http::StatusCode;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Number, Value};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use tracing::error;
 
