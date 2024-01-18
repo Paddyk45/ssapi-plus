@@ -1,3 +1,5 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+
 mod routes;
 mod util;
 
@@ -5,11 +7,11 @@ use crate::routes::{route_servers_csv, route_whereis_csv};
 use axum::routing::get;
 use axum::Router;
 
-pub static API_BASE_URL: &'static str = "https://api.serverseeker.net";
+pub static API_BASE_URL: &str = "https://api.serverseeker.net";
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().init();
 
     let app = Router::new()
         .route("/", get(route_index))
@@ -21,7 +23,5 @@ async fn main() {
 }
 
 async fn route_index() -> String {
-    include_str!("index.txt")
-        .replace("$VERSION", env!("CARGO_PKG_VERSION"))
-        .to_string()
+    include_str!("index.txt").replace("$VERSION", env!("CARGO_PKG_VERSION"))
 }

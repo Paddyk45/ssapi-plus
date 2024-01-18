@@ -1,15 +1,21 @@
 ServerSeeker API+ v$VERSION by Paddyk45
 https://github.com/Paddyk45/ssapi-plus
 
-QUERY PARAMETERS
-    To provide the API key, you put 'api_key'
+AUTHORIZATION
+    To provide the API key, you put 'api_key' in the query params.
+    You can get your API Key here:
+    https://discord.com/api/oauth2/authorize?client_id=1087083964432404590&redirect_uri=https%3A%2F%2Fapi.serverseeker.net%2Fdiscord_callback&response_type=code&scope=identify
 
 ENDPOINTS
     CSV:
         PATH: /<whereis/servers>/csv
         DESCRIPTION: Get the output of /whereis or /servers as CSV
         QUERY PARAMETERS: See https://serverseeker.net/docs
+        EXAMPLES:
+            - /whereis/csv?api_key=<API_KEY>&name=Paddyk45
+            - /servers/csv?api_key=<API_KEY>&cracked=true&asn=1337&software=paper
 
 NOTE
-    Your API key will not be stored anywhere (unless the source code was modified) and will
+    Your API key will not be stored anywhere in the logs or the
+    filesystem (unless the source code was modified) and will
     get dropped from memory after the request was made

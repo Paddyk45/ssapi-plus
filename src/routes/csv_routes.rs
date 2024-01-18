@@ -1,13 +1,12 @@
-use crate::util::is_valid_api_key;
+use crate::util::{is_valid_api_key, string_bool_value};
 use crate::API_BASE_URL;
 use axum::extract::Query;
 use axum::http::StatusCode;
-use axum::response::ErrorResponse;
-use log::error;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Number, Value};
 use std::collections::HashMap;
+use tracing::error;
 
 // ------- Whereis -------
 enum SearchType {
@@ -18,6 +17,14 @@ enum SearchType {
 pub async fn route_whereis_csv(
     Query(params): Query<HashMap<String, String>>,
 ) -> axum::response::Result<(StatusCode, String)> {
+    #[derive(Serialize, Deserialize)]
+    struct Record {
+        server: String,
+        last_seen: String,
+        name: String,
+        uuid: String,
+    }
+
     let Some(api_key) = params.get("api_key") else {
         return Ok((
             StatusCode::UNAUTHORIZED,
@@ -47,8 +54,8 @@ pub async fn route_whereis_csv(
         }
     };
     let body = match search_type {
-        SearchType::Name(name) => format!("{{\"name\": \"{name}\"}}"),
-        SearchType::Uuid(uuid) => format!("{{\"uuid\": \"{uuid}\"}}"),
+        SearchType::Name(name) => json!({"name": name}),
+        SearchType::Uuid(uuid) => json!({"uuid": uuid}),
     };
     let res = match reqwest::Client::new()
         .post(format!("{API_BASE_URL}/whereis"))
@@ -67,6 +74,7 @@ pub async fn route_whereis_csv(
             ));
         }
     };
+
     let json: Value = res
         .json()
         .await
@@ -74,16 +82,14 @@ pub async fn route_whereis_csv(
     if let Some(e) = json.get("error") {
         return Err(e.as_str().unwrap().to_owned().into());
     }
-    let mut csv = String::from("server,name,uuid,last_seen\n");
-    for record in json["data"].as_array().unwrap() {
-        csv.push_str(&format!(
-            "{},{},{},{}\n",
-            record["server"].as_str().unwrap(),
-            record["name"].as_str().unwrap(),
-            record["uuid"].as_str().unwrap(),
-            record["last_seen"].as_u64().unwrap(),
-        ));
+
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    let records: Vec<Record> = serde_json::from_value(json["data"].clone()).unwrap();
+    for record in records {
+        wtr.serialize(record).unwrap();
     }
+    let csv = String::from_utf8(wtr.into_inner().unwrap()).unwrap();
+
     Ok((StatusCode::OK, csv))
 }
 
@@ -91,6 +97,18 @@ pub async fn route_whereis_csv(
 pub async fn route_servers_csv(
     Query(params): Query<HashMap<String, String>>,
 ) -> axum::response::Result<(StatusCode, String)> {
+    #[derive(Serialize, Deserialize)]
+    struct Record {
+        server: String,
+        cracked: Option<bool>,
+        description: String,
+        last_seen: u32,
+        max_players: i32,
+        online_players: i32,
+        protocol: i32,
+        version: String,
+    }
+
     let Some(api_key) = params.get("api_key") else {
         return Ok((
             StatusCode::UNAUTHORIZED,
@@ -103,28 +121,48 @@ pub async fn route_servers_csv(
     {
         return Ok((StatusCode::UNAUTHORIZED, String::from("Invalid API key")));
     }
-    let mut json_string = String::from("{");
-    if let Some(online_players) = params.get("online_players") {
-        if let Ok(num) = online_players.parse::<usize>() {
-            json_string.push_str(&format!("\"online_players\":{num},"));
-        }
-        if online_players.contains('-') {
-            if let Some((min, max)) = online_players.split_once('-') {
-                if let (Ok(min), Ok(max)) = (min.parse::<usize>(), max.parse::<usize>()) {
-                    json_string.push_str(&format!("\"online_players\": [{min}, {max}],"));
-                }
-            };
-        }
-    }
-    if let Some(s) = json_string.strip_suffix(",") {
-        json_string = s.to_string()
-    }
-    json_string.push('}');
+
+    let asn = params
+        .get("asn")
+        .map(|asn| asn.parse::<u16>().map_or(json!(null), |asn| json!(asn)));
+    let country_code = params.get("country_code");
+    let cracked = params.get("cracked").map(|val| string_bool_value(val));
+    let description = params.get("description");
+    let ignore_modded = params
+        .get("ignore_modded")
+        .map(|val| string_bool_value(val));
+    let max_players = params
+        .get("max_players")
+        .map(|val| val.parse::<i32>().map_or(json!(null), |n| json!(n)));
+    let online_players = params
+        .get("online_players")
+        .map(|val| val.parse::<i32>().map_or(json!(null), |n| json!(n)));
+    let only_bungeespoofable = params
+        .get("only_bungeespoofable")
+        .map(|val| string_bool_value(val));
+    let protocol = params
+        .get("protocol")
+        .map(|val| val.parse::<i32>().map_or(json!(null), |n| json!(n)));
+    let version = params.get("version");
+
+    let body = json!({
+        "asn": asn,
+        "country_code": country_code,
+        "cracked": cracked,
+        "description": description,
+        "ignore_modded": ignore_modded,
+        "max_players": max_players,
+        "online_players": online_players,
+        "only_bungeespoofable": only_bungeespoofable,
+        "protocol": protocol,
+        "version": version,
+    });
+
     let res = match reqwest::Client::new()
         .post(format!("{API_BASE_URL}/servers"))
         .header(AUTHORIZATION, format!("Bearer {api_key}"))
         .header(CONTENT_TYPE, "application/json")
-        .body(json_string.to_string())
+        .body(body.to_string())
         .send()
         .await
     {
@@ -134,6 +172,7 @@ pub async fn route_servers_csv(
             return Err(format!("Error sending request: {e}").into());
         }
     };
+
     let json: Value = res
         .json()
         .await
@@ -141,29 +180,17 @@ pub async fn route_servers_csv(
     if let Some(e) = json.get("error") {
         return Err(e.as_str().unwrap().to_owned().into());
     }
-    let mut csv = String::from(
-        "server,cracked,description,last_seen,max_players,online_players,protocol,version\n",
-    );
-    for record in json["data"].as_array().unwrap() {
-        csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
-            record["server"].as_str().unwrap(),
-            record["cracked"]
-                .as_bool()
-                .map(|b| b.to_string())
-                .unwrap_or_else(|| "null".to_string()),
-            record["description"]
-                .as_str()
-                .unwrap()
-                .replace(',', "\\,")
-                .replace('\n', "\\n"),
-            record["last_seen"].as_u64().unwrap(),
-            record["max_players"].as_i64().unwrap(),
-            record["online_players"].as_i64().unwrap(),
-            record["protocol"].as_i64().unwrap(),
-            record["version"].as_str().unwrap()
-        ));
+
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    let mut records: Vec<Record> = serde_json::from_value(json["data"].clone()).unwrap();
+    records.iter_mut().for_each(|r| {
+        r.description = r.description.replace('\n', "\\n");
+        r.version = r.version.replace('\n', "\\n")
+    });
+    for record in records {
+        wtr.serialize(record).unwrap();
     }
+    let csv = String::from_utf8(wtr.into_inner().unwrap()).unwrap();
 
     Ok((StatusCode::OK, csv))
 }
